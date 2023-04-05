@@ -2,6 +2,9 @@
 
 This is a command-line tool to convert HEIF images to other image formats such as JPEG, PNG, etc. It uses the **pyheif** and **Pillow** libraries to read and convert HEIF images. It also **supports multiprocessing** to speed up the conversion process.
 
+> **Note**
+> This converter supports extraction of images from the heic file.
+
 ## Installation
 
 * Clone the repository
