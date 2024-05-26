@@ -1,64 +1,75 @@
-import pyheif
-from PIL import Image
-import tqdm
-import argparse
 import os
+import argparse
 import multiprocessing as mp
+from tqdm import tqdm
+import pillow_heif as ph
 
 
-class Converter:
-    def __init__(self, image_path, output_path):
-        self.images = pyheif.open_container(image_path).top_level_images
-        self.output_path = output_path
+def save_images(images, start, output_path, image_type, quality, position=0):
+    for i, image in tqdm(
+        enumerate(images),
+        total=len(images),
+        desc=f"Converting {start + 1} to {start + len(images)}",
+        position=position,
+    ):
+        image.save(
+            os.path.join(output_path, f"{i + start}.{image_type}"),
+            quality=quality,
+        )
 
-    def convert(self, image_type="jpg", quality=100):
-        # Use tqdm to show progress bar
-        for i, undecoded_image in tqdm.tqdm(
-            enumerate(self.images),
-            total=len(self.images),
-            desc=f"Converting to {image_type}",
-        ):
-            heif_file = undecoded_image.image.load()
-            image = Image.frombytes(
-                mode=heif_file.mode,
-                size=heif_file.size,
-                data=heif_file.data,
-                decoder_name="raw",
-            )
-            image.save(
-                os.path.join(self.output_path, f"{i}.{image_type}"), quality=quality
-            )
-            del image
-            del heif_file
+
+def convert_heif_to_images(image_path, output_path, image_type, quality, processes):
+    heif_file = ph.open_heif(image_path)
+    num_images = len(heif_file)
+    print(f"\nFound {num_images} images in the HEIF file. Converting...\n")
+
+    images = [image.to_pillow() for image in heif_file]
+    chunk_size = (num_images + processes - 1) // processes
+    tasks = [
+        (images[i:i + chunk_size], i, output_path, image_type, quality)
+        for i in range(0, num_images, chunk_size)
+    ]
+    with mp.Pool(processes) as pool:
+        pool.starmap(save_images, tasks)
+    print("\nImages saved to", os.path.abspath(output_path))
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-i", "--image", help="Image to convert", required=True)
-    parser.add_argument("-o", "--output", help="Output directory")
+    parser.add_argument("-o", "--output", help="Output directory", default="")
     parser.add_argument(
-        "-t", "--type", help="Type of image (jpg, png etc.)", default="jpg"
+        "-t", "--type", help="Type of image: jpg, png etc. (default = jpg)", default="jpg"
     )
     parser.add_argument(
         "-q",
         "--quality",
-        help="Quality of image (default = 100)",
-        default=100,
+        help="Quality of image (default = 100)", 
+        default=100, 
         type=int,
     )
+    parser.add_argument(
+        "-p",
+        "--processes", 
+        help="Number of processes to use (default = 2)", 
+        default=2, 
+        type=int,
+    )
+
     args = parser.parse_args()
 
     if not os.path.exists(args.image):
         print("Image not found")
         exit(1)
 
-    if not args.output:
-        # Make directory with the name of image
-        os.mkdir(args.image.split(".")[0])
-        args.output = args.image.split(".")[0]
+    output_path = args.output or args.image.split(".")[0]
+    if not os.path.exists(output_path):
+        os.makedirs(output_path)
     else:
-        if not os.path.exists(args.output):
-            os.mkdir(args.output)
+        print("Output directory already exists. Do you want to overwrite the images?")
+        choice = input("(y/n): ")
+        if choice.lower() != "y":
+            print("Exiting...")
+            exit(1)
 
-    converter = Converter(args.image, args.output)
-    converter.convert(args.type, args.quality)
+    convert_heif_to_images(args.image, output_path, args.type, args.quality, args.processes)

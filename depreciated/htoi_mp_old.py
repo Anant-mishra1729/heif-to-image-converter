@@ -20,9 +20,7 @@ class Converter:
                 self.undecoded_images[len(self.undecoded_images) // 2 :],
             ]
 
-            p1 = mp.Process(
-                target=self._convert, args=(chunks[0], 0, 0)
-            )
+            p1 = mp.Process(target=self._convert, args=(chunks[0], 0, 0))
             p2 = mp.Process(
                 target=self._convert,
                 args=(chunks[1], len(self.undecoded_images) // 2, 1),
@@ -53,7 +51,7 @@ class Converter:
                 heif_file.data,
                 "raw",
                 heif_file.mode,
-                heif_file.stride
+                heif_file.stride,
             )
             image.save(
                 os.path.join(args.output, f"{i + start}.{args.type}"),
